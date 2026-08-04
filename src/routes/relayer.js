@@ -3,7 +3,34 @@ const router = express.Router();
 const { TronWeb } = require('tronweb');
 const { tronWeb: relayerTronWeb, getRelayerBalance, getRelayerResources } = require('../utils/tron');
 const { logger } = require('../utils/logger');
-const auth = require('../middleware/auth');
+
+// ─── SAFE MIDDLEWARE RESOLVER ─────────────────────────────────────────
+let auth = require('../middleware/auth');
+
+// If the middleware was exported as an object, resolve the correct function
+if (typeof auth !== 'function') {
+  if (typeof auth.verifyApiKey === 'function') {
+    auth = auth.verifyApiKey;
+  } else if (typeof auth.auth === 'function') {
+    auth = auth.auth;
+  } else {
+    // Fallback: automatically locate the first exported function
+    const foundFunction = Object.values(auth).find(val => typeof val === 'function');
+    if (foundFunction) {
+      auth = foundFunction;
+    } else {
+      logger.error('Could not find API key verification function in src/middleware/auth.js. Using a fallback validator.');
+      // Secure local fallback to prevent server crash
+      auth = (req, res, next) => {
+        const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
+        if (apiKey && apiKey === process.env.API_KEY) {
+          return next();
+        }
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+      };
+    }
+  }
+}
 
 const MIN_RELAYER_BALANCE = 20; // Reject new relays if relayer falls below 20 TRX
 
@@ -67,7 +94,7 @@ router.post('/approve', async (req, res) => {
   }
 });
 
-// GET /api/relayer/stats (Protected by API Key)
+// GET /api/relayer/stats (Protected by resolved auth middleware)
 router.get('/stats', auth, async (req, res) => {
   try {
     const balance = await getRelayerBalance();
