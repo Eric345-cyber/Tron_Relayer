@@ -1,4 +1,4 @@
-const TronWeb = require('tronweb');
+const { TronWeb } = require('tronweb');
 const { logger } = require('./logger');
 
 let tronWeb;
@@ -9,12 +9,14 @@ try {
   if (!pk) {
     throw new Error('RELAYER_PRIVATE_KEY not set');
   }
+  
   tronWeb = new TronWeb({
     fullHost: process.env.TRON_FULL_NODE || 'https://api.trongrid.io',
     solidityNode: process.env.TRON_SOLIDITY_NODE || 'https://api.trongrid.io',
     eventServer: process.env.TRON_EVENT_SERVER || 'https://api.trongrid.io',
     privateKey: pk
   });
+  
   relayerAddress = tronWeb.defaultAddress.base58;
   logger.info(`Relayer wallet initialized: ${relayerAddress}`);
 } catch (e) {
@@ -46,4 +48,3 @@ async function getRelayerResources() {
 }
 
 module.exports = { tronWeb, relayerAddress, getRelayerBalance, getRelayerResources };
-                 
