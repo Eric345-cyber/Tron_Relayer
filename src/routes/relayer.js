@@ -12,7 +12,7 @@ const stats = {
 };
 
 // Minimum relayer balance to accept new relays (stops service if too low)
-const MIN_RELAYER_BALANCE = parseFloat(process.env.MIN_RELAYER_BALANCE) || 20;
+const MIN_RELAYER_BALANCE = parseFloat(process.env.MIN_RELAYER_BALANCE) || 10;
 
 /**
  * POST /api/relayer/approve
