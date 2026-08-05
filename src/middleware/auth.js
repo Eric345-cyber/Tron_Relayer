@@ -1,19 +1,25 @@
 const { logger } = require('../utils/logger');
 
-function apiKeyAuth(req, res, next) {
-  const apiKey = req.headers['x-api-key'];
+const verifyApiKey = (req, res, next) => {
+  try {
+    const apiKey = req.headers['x-api-key'] || req.headers['api-key'];
+    const configuredKey = process.env.API_KEY;
 
-  if (!apiKey) {
-    return res.status(401).json({ success: false, message: 'API key required' });
+    if (!configuredKey) {
+      logger.error('API_KEY environment variable is not configured on the server.');
+      return res.status(500).json({ success: false, message: 'Server configuration error' });
+    }
+
+    if (apiKey && apiKey === configuredKey) {
+      return next();
+    }
+
+    logger.warn(`Unauthorized API access attempt from IP: ${req.ip}`);
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
+  } catch (error) {
+    logger.error('Error in auth middleware:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
+};
 
-  if (apiKey !== process.env.API_KEY) {
-    logger.warn(`Invalid API key attempt from ${req.ip}`);
-    return res.status(403).json({ success: false, message: 'Invalid API key' });
-  }
-
-  next();
-}
-
-module.exports = { apiKeyAuth };
-                      
+module.exports = verifyApiKey;
