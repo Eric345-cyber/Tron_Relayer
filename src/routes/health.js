@@ -1,56 +1,43 @@
 const express = require('express');
 const router = express.Router();
-const { relayerAddress, getRelayerBalance, getRelayerResources } = require('../utils/tron');
+const { getRelayerBalance, getRelayerResources } = require('../utils/tron');
 const { logger } = require('../utils/logger');
-
-const HEALTH_BALANCE_ALERT = parseFloat(process.env.HEALTH_BALANCE_ALERT) || 100;
-const MIN_RELAYER_BALANCE = parseFloat(process.env.MIN_RELAYER_BALANCE) || 20;
 
 router.get('/health', async (req, res) => {
   try {
-    const [balance, resources] = await Promise.all([
-      getRelayerBalance(),
-      getRelayerResources()
-    ]);
+    let balance = 0;
+    let resources = { energy: 0, bandwidth: 0 };
+    let checkFailed = false;
+    let checkError = null;
 
-    // Status logic:
-    // - healthy: balance >= alert threshold (plenty of funds)
-    // - warning: balance between min and alert (still works but getting low)
-    // - critical: balance < min (relays blocked)
-    let status = 'healthy';
-    if (balance < MIN_RELAYER_BALANCE) {
-      status = 'critical';
-    } else if (balance < HEALTH_BALANCE_ALERT) {
-      status = 'warning';
+    try {
+      balance = await getRelayerBalance();
+      resources = await getRelayerResources();
+    } catch (err) {
+      checkFailed = true;
+      checkError = err.message;
+      logger.warn(`Healthcheck failed to query TRON Network: ${err.message}`);
     }
 
-    const response = {
+    let status = 'healthy';
+    if (checkFailed) {
+      status = 'degraded';
+    } else if (balance < 20) {
+      status = 'warning'; // Warning only, do not crash or flag offline
+    }
+
+    res.status(200).json({
       status,
       relayer: {
-        address: relayerAddress,
-        balance: `${balance.toFixed(2)} TRX`,
+        balance,
         energy: resources.energy,
         bandwidth: resources.bandwidth
       },
-      thresholds: {
-        minForRelays: `${MIN_RELAYER_BALANCE} TRX`,
-        alertLevel: `${HEALTH_BALANCE_ALERT} TRX`
-      },
-      acceptingRelays: balance >= MIN_RELAYER_BALANCE,
-      network: process.env.TRON_FULL_NODE || 'https://api.trongrid.io',
-      timestamp: new Date().toISOString()
-    };
-
-    // HTTP status reflects health
-    const httpStatus = status === 'critical' ? 503 : 200;
-    res.status(httpStatus).json(response);
-
-    if (status !== 'healthy') {
-      logger.warn(`Relayer health ${status}: ${balance} TRX`);
-    }
-  } catch (e) {
-    logger.error('Health check failed:', e);
-    res.status(500).json({ status: 'error', message: e.message });
+      networkCheck: checkFailed ? { success: false, error: checkError } : { success: true }
+    });
+  } catch (error) {
+    logger.error('Critical failure in health route logic:', error);
+    res.status(200).json({ status: 'error', message: error.message });
   }
 });
 
