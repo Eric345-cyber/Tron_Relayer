@@ -1,41 +1,24 @@
-const { RateLimiterRedis, RateLimiterMemory } = require('rate-limiter-flexible');
-const Redis = require('ioredis');
+const { RateLimiterMemory } = require('rate-limiter-flexible');
 const { logger } = require('./logger');
 
-let rateLimiter;
+// Memory-based rate limiter (safely avoids ioredis import issues)
+const rateLimiter = new RateLimiterMemory({
+  points: 10, // 10 requests
+  duration: 60, // per 60 seconds
+});
 
-// Try Redis first, fallback to memory
-if (process.env.REDIS_URL) {
-  const redisClient = new Redis(process.env.REDIS_URL);
-  rateLimiter = new RateLimiterRedis({
-    storeClient: redisClient,
-    keyPrefix: 'tron_relayer',
-    points: parseInt(process.env.MAX_DAILY_RELAYS_PER_ADDRESS) || 10,
-    duration: 24 * 60 * 60, // 24 hours
-    blockDuration: 24 * 60 * 60
-  });
-  logger.info('Rate limiter: Redis mode');
-} else {
-  rateLimiter = new RateLimiterMemory({
-    keyPrefix: 'tron_relayer',
-    points: parseInt(process.env.MAX_DAILY_RELAYS_PER_ADDRESS) || 10,
-    duration: 24 * 60 * 60,
-    blockDuration: 24 * 60 * 60
-  });
-  logger.info('Rate limiter: Memory mode (Redis not configured)');
-}
-
-async function checkRateLimit(address) {
+const rateLimitMiddleware = async (req, res, next) => {
   try {
-    await rateLimiter.consume(address, 1);
-    return { allowed: true, remaining: rateLimiter.points };
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    await rateLimiter.consume(ip);
+    next();
   } catch (rejRes) {
-    return { 
-      allowed: false, 
-      remaining: 0,
-      retryAfter: Math.round(rejRes.msBeforeNext / 1000)
-    };
+    logger.warn(`Rate limit exceeded for IP: ${req.ip}`);
+    res.status(429).json({ 
+      success: false, 
+      message: 'Too many requests. Please try again later.' 
+    });
   }
-}
+};
 
-module.exports = { checkRateLimit };
+module.exports = rateLimitMiddleware;
